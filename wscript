@@ -36,10 +36,10 @@ else:
 def down_libopencm3():
     if not os.path.exists('libopencm3'):
         print('begin downloading libopencm3 library...\n')
-        os.system('git clone git@github.com:libopencm3/libopencm3')
+        os.system('git clone git@github.com:neovc/libopencm3')
 
 def update_libopencm3():
-    os.system('cd libopencm3 && git pull && make TARGETS=stm32/l4')
+    os.system('cd libopencm3 && git pull && make TARGETS=stm32/wl')
 
 def options(ctx):
     ctx.load('gcc')
@@ -62,7 +62,7 @@ def configure(ctx):
     ctx.find_program(ctx.options.toolchain + 'objcopy', var='OBJCOPY')
 
     # Generate build arguments
-    ctx.env.append_unique('CFLAGS', ['-Wall', '-DSTM32L4', '-fno-common', '-Os', '-mthumb', '-mcpu=cortex-m4', '-mfloat-abi=hard', '-mfpu=fpv4-sp-d16', '-fno-exceptions', '-ffunction-sections', '-fdata-sections', '-Wempty-body', '-Wtype-limits', '-Wmissing-parameter-type', '-Wuninitialized', '-fno-strict-aliasing', '-Wno-unused-function', '-Wno-stringop-truncation', '-fsingle-precision-constant'])
+    ctx.env.append_unique('CFLAGS', ['-Wall', '-DSTM32WL', '-fno-common', '-Os', '-mthumb', '-mcpu=cortex-m4', '-mfloat-abi=hard', '-mfpu=fpv4-sp-d16', '-fno-exceptions', '-ffunction-sections', '-fdata-sections', '-Wempty-body', '-Wtype-limits', '-Wmissing-parameter-type', '-Wuninitialized', '-fno-strict-aliasing', '-Wno-unused-function', '-Wno-stringop-truncation', '-fsingle-precision-constant'])
 
     ctx.env.append_unique('LINKFLAGS', ['--static', '-nostartfiles', '-Wl,--gc-sections', '-mthumb', '-mcpu=cortex-m4', '-mfloat-abi=hard', '-mfpu=fpv4-sp-d16'])
 
@@ -97,7 +97,7 @@ def configure(ctx):
     # Save config to header file
     ctx.write_config_header('include/conf_loracsp.h', top=True)
 
-    if ctx.options.update == True or not os.path.exists('libopencm3/lib/libopencm3_stm32l4.a'):
+    if ctx.options.update == True or not os.path.exists('libopencm3/lib/libopencm3_stm32wl.a'):
         update_libopencm3()
 
 def build(ctx):
@@ -110,7 +110,7 @@ def build(ctx):
         source=ctx.path.ant_glob(ctx.env.FILES),
         target=elf_target,
         use=use,
-        stlib=['opencm3_stm32l4'],
+        stlib=['opencm3_stm32wl'],
         stlibpath=[cwd + '/libopencm3/lib']
     )
     ctx(rule='${OBJCOPY} -O binary ${SRC} ${TGT}', source=elf_target, target=bin_target, name='objcopy', always=True)
@@ -118,7 +118,9 @@ def build(ctx):
 
 def flash(ctx):
     ctx(name='flash', rule='${STFLASH} write ${SRC} 0x8000000', source=bin_target, always=True)
-#    ctx(name='flash', rule='${STFLASH} erase && ${STFLASH} write ${SRC} 0x8000000', source=bin_target, always=True)
+
+def erase(ctx):
+    ctx(name='flash', rule='${STFLASH} erase && ${STFLASH} write ${SRC} 0x8000000', source=bin_target, always=True)
 
 class Program(BuildContext):
     cmd = 'flash'
