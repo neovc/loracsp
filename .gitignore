@@ -45,8 +45,6 @@ tags
 Objects/*
 DebugConfig/*
 RTE/*
-libopencm3/*
-libopencm3
 .lock-waf_*
 build/*
 .waf*/*
