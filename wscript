@@ -118,9 +118,7 @@ def build(ctx):
 
 def flash(ctx):
     ctx(name='flash', rule='${STFLASH} write ${SRC} 0x8000000', source=bin_target, always=True)
-
-def erase(ctx):
-    ctx(name='flash', rule='${STFLASH} erase && ${STFLASH} write ${SRC} 0x8000000', source=bin_target, always=True)
+#    ctx(name='flash', rule='${STFLASH} erase && ${STFLASH} write ${SRC} 0x8000000', source=bin_target, always=True)
 
 class Program(BuildContext):
     cmd = 'flash'
