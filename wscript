@@ -71,11 +71,8 @@ def configure(ctx):
     # FreeRTOS
     ctx.env.append_unique('FILES', ['rtos/*.c'])
 
-    # MAIN FILE
-    ctx.env.append_unique('FILES', ['src/' + main_file + ''])
-
-    # OTHER SOURCE FILES
-    ctx.env.append_unique('FILES', ['src/printf.c'])
+    # PROJECT FILES
+    ctx.env.append_unique('FILES', ['src/*.c'])
 
     ctx.env.append_unique('LINKFLAGS', ['-T' + cwd + '/flash.ld', '-Wl,-Map=' + map_target + ''])
 

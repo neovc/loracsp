@@ -8,6 +8,7 @@
 
 #define mini_printf     printf_
 #define USART_LOOP      10000
+#define FLASH_BASEADDR  0x08000000
 
 int printf_(const char *format, ...);
 void console_puts(const char *); 
