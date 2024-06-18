@@ -25,7 +25,8 @@
 
 #define USART_CONSOLE USART2
 
-int freertos_started = 0, to_feed_iwdg = 1, uptime = 0;
+int freertos_started = 0, to_feed_iwdg = 1;
+uint32_t uptime = 0;
 uint8_t csp_node = 0, boot_cause = 0;
 const char status[2][8] = {"OK", "FAILED"};
 
@@ -243,8 +244,8 @@ uptime_cmd(int argc, char **argv)
 {
 	uptime = xTaskGetTickCount() / (pdMS_TO_TICKS(1000));
 
-	/* STM32WLxx has no FPU */
-	mini_printf("rev %s built at %s %s, up %d secs, FreeRTOS %s\n", CONFIG_REVISION, __DATE__, __TIME__, uptime, tskKERNEL_VERSION_NUMBER);
+	mini_printf("rev %s built at %s %s, up %d secs (%.2f days), FreeRTOS %s\n", CONFIG_REVISION, __DATE__, __TIME__, uptime,
+			1.0 * uptime / 86400.0, tskKERNEL_VERSION_NUMBER);
 	return 0;
 }
 
