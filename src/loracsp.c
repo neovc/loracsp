@@ -450,6 +450,7 @@ void sys_tick_handler(void) {
 	xPortSysTickHandler();
 }
 
+/* polynomial 0x1EDC6F41 */
 static const uint32_t
 crc_tab[256] =
 {
