@@ -395,8 +395,7 @@ main(void)
 {
 	int r;
 
-#define FLASH_SIZE_REG	MMIO16(0x1FFF75E0)
-	device_flash_size = (FLASH_SIZE_REG) * 1024;
+	device_flash_size = MMIO16(DESIG_FLASH_SIZE_BASE) * 1024;
 
 	scb_set_priority_grouping(SCB_AIRCR_PRIGROUP_GROUP16_NOSUB);
 
