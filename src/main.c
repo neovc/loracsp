@@ -46,6 +46,7 @@ int help_cmd(int argc, char **argv);
 int uptime_cmd(int argc, char **argv);
 extern int param_cmd(int argc, char **argv);
 extern int flash_cmd(int argc, char **argv);
+extern int lora_cmd(int argc, char **argv);
 
 uint8_t get_boot_cause(void);
 
@@ -269,6 +270,11 @@ const command_t main_cmds[] = {
 		.name = "param",
 		.handler = param_cmd,
 		.help = "param [list|set|save] [name] [value]",
+	},
+	{
+		.name = "lora",
+		.handler = lora_cmd,
+		.help = "lora [init|send] [data]",
 	},
 	{
 		.name = "help",
