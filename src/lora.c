@@ -98,8 +98,7 @@ subghz_init(void)
 
 	/* PLL calibration. */
 	res = subghz_calibrate(SUBGHZ_CALIB_ALL);
-	if (SUBGHZ_CMD_SUCCESS(res))
-	{
+	if (SUBGHZ_CMD_SUCCESS(res)) {
 		/* Switch to standby mode. */
 		subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
 
@@ -220,7 +219,7 @@ subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 
 	spi_transmit(SUBGHZ_READ_REGISTER);
 	spi_transmit((address & 0xF00) >> 8);
-	spi_transmit((address & 0x00FF));
+	spi_transmit((address & 0xFF));
 	status = spi_read_byte();
 
 	for (i = 0; i < size; i++) {
@@ -250,10 +249,10 @@ subghz_write_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 	spi_start_transaction();
 
 	spi_transmit(SUBGHZ_WRITE_REGISTER);
-	spi_transmit((address & 0xFF00U) >> 8U);
-	spi_transmit((address & 0x00FFU));
+	spi_transmit((address & 0xF00) >> 8);
+	spi_transmit((address & 0xFF));
 
-	for (uint16_t i = 0U; i < size; i++) {
+	for (uint16_t i = 0; i < size; i++) {
 		spi_transmit(p_buffer[i]);
 	}
 
@@ -1683,6 +1682,9 @@ subghz_receive(uint8_t *p_frame, uint8_t *p_length, uint32_t timeout)
 void
 subghz_set_callbacks(const subghz_callbacks_t *callbacks)
 {
+	if (callbacks == NULL)
+		return;
+
 	/* Update our packet sent callback, if required. */
 	if (callbacks->pfn_on_packet_sent != NULL)
 		g_subghz_state.callbacks.pfn_on_packet_sent = callbacks->pfn_on_packet_sent;
@@ -1939,39 +1941,37 @@ int init_lora(void)
 	};
 
 	subghz_lora_config_t lora_config = {
-	  .sf = SUBGHZ_LORA_SF7,
-	  .bw = SUBGHZ_LORA_BW250,
-	  .cr = SUBGHZ_LORA_CR_48,
-	  .freq = 865200000,
-	  .payload_length = 13,
-	  .preamble_length = 12,
-	  .header_type = SUBGHZ_PKT_FIXED_LENGTH,
-	  .crc_enabled = false,
-	  .invert_iq = false,
-	  .ldro = SUBGHZ_LORA_LDRO_DISABLED,
-	  .pa_mode = SUBGHZ_PA_MODE_HP,
-	  .pa_power = SUBGHZ_PA_PWR_14DBM
+		.sf = SUBGHZ_LORA_SF7,
+		.bw = SUBGHZ_LORA_BW250,
+		.cr = SUBGHZ_LORA_CR_48,
+		.freq = 865200000,
+		.payload_length = 13,
+		.preamble_length = 12,
+		.header_type = SUBGHZ_PKT_FIXED_LENGTH,
+		.crc_enabled = false,
+		.invert_iq = false,
+		.ldro = SUBGHZ_LORA_LDRO_DISABLED,
+		.pa_mode = SUBGHZ_PA_MODE_HP,
+		.pa_power = SUBGHZ_PA_PWR_14DBM
 	};
 
 	subghz_fsk_config_t fsk_config = {
-	  .freq = 865200000,
-	  .freq_dev = 50000,
-	  .bandwidth = SUBGHZ_FSK_BW373,
-	  .pulse_shape = SUBGHZ_FSK_GAUSSIAN_NONE,
-	  .bit_rate = 50000,
-	  .preamble_length = 8,
-
-	  .packet_type = SUBGHZ_PKT_FIXED_LENGTH,
-	  .sync_word_length = 0,
-	  .payload_length = 13,
-
-	  .addr_comp = SUBGHZ_ADDR_COMP_DISABLED,
-	  .crc = SUBGHZ_PKT_CRC_NONE,
-	  .whitening = false,
-
-	  .pa_mode = SUBGHZ_PA_MODE_HP,
-	  .pa_power = SUBGHZ_PA_PWR_22DBM
+		.freq = 865200000,
+		.freq_dev = 50000,
+		.bandwidth = SUBGHZ_FSK_BW373,
+		.pulse_shape = SUBGHZ_FSK_GAUSSIAN_NONE,
+		.bit_rate = 50000,
+		.preamble_length = 8,
+		.packet_type = SUBGHZ_PKT_FIXED_LENGTH,
+		.sync_word_length = 0,
+		.payload_length = 13,
+		.addr_comp = SUBGHZ_ADDR_COMP_DISABLED,
+		.crc = SUBGHZ_PKT_CRC_NONE,
+		.whitening = false,
+		.pa_mode = SUBGHZ_PA_MODE_HP,
+		.pa_power = SUBGHZ_PA_PWR_22DBM
 	};
+
 	fsk_config.sync_word[0] = 0xBA;
 	fsk_config.sync_word[1] = 0xDC;
 	fsk_config.sync_word[2] = 0x0F;
@@ -1993,6 +1993,7 @@ int init_lora(void)
 	rcc_osc_on(RCC_HSE);
 	rcc_wait_for_osc_ready(RCC_HSE);
 
+//	mini_printf("HSE -> %s\n", rcc_is_osc_ready(RCC_HSE)?"ENABLED":"DISABLED");
 	/* Initialize SUBGHZ. */
 	subghz_init();
 
@@ -2038,15 +2039,12 @@ on_tx_pkt_sent(void)
 void
 on_rf_switch_cb(bool tx)
 {
-	  if (tx)
-	  {
+	  if (tx) {
 	      /* TX mode, low power */
 	      mini_printf("Enable TX (RF switch)\n");
 	      gpio_set(RF_SW_CTRL_GPIO_PORT, RF_SW_CTRL_TXEN_PIN);
 	      gpio_clear(RF_SW_CTRL_GPIO_PORT, RF_SW_CTRL_RXEN_PIN);
-	  }
-	  else
-	  {
+	  } else {
 	      /* RX mode, low power */
 	      mini_printf("Enable RX (RF switch)\n");
 	      gpio_clear(RF_SW_CTRL_GPIO_PORT, RF_SW_CTRL_TXEN_PIN);
