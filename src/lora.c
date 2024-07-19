@@ -1933,6 +1933,8 @@ subghz_set_whitening_init(uint8_t white_init)
 int lora_started = 0;
 int init_lora(void)
 {
+	int r;
+
 	subghz_callbacks_t my_callbacks = {
 		.pfn_on_packet_recvd = on_rx_pkt_recvd,
 		.pfn_on_packet_sent = on_tx_pkt_sent,
@@ -1988,12 +1990,16 @@ int init_lora(void)
 	rcc_periph_clock_enable(RCC_GPIOB);
 	gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT, GPIO_PUPD_PULLDOWN, GPIO3 | GPIO4 | GPIO5);
 
+#if 0
+	/* according to RM0461 V8, P245, 6.2.1
+	   The sub-GHz radio enables HSE32 autonomously for its own purpose, independently of the HSEON bit.
+	 */
 	/* enable HSE */
-	rcc_osc_bypass_enable(RCC_HSE);
+	rcc_osc_bypass_enable(RCC_HSE); /* ENABLE TXCO */
 	rcc_osc_on(RCC_HSE);
 	rcc_wait_for_osc_ready(RCC_HSE);
+#endif
 
-//	mini_printf("HSE -> %s\n", rcc_is_osc_ready(RCC_HSE)?"ENABLED":"DISABLED");
 	/* Initialize SUBGHZ. */
 	subghz_init();
 
@@ -2004,11 +2010,10 @@ int init_lora(void)
 	subghz_set_buffer_base_address(0, 0);
 
 	/* Enable LoRa mode. */
-	mini_printf("Enable LoRa mode Now\n");
-	if (subghz_lora_mode(&lora_config) == SUBGHZ_ERROR)
-		mini_printf("Config failed\n");
-	else
-		lora_started = 1;
+	mini_printf("HSE32 -> %s\n", rcc_is_osc_ready(RCC_HSE)?"ON":"OFF");
+	r = subghz_lora_mode(&lora_config);
+	mini_printf("Enable LoRa -> %s\n", r == 0?"OK":"FAILED");
+	lora_started = (r == 0);
 	return 0;
 }
 
