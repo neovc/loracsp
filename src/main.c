@@ -409,6 +409,7 @@ main(void)
 
 	/* enable IWDG */
 	rcc_osc_on(RCC_LSI); /* IWDG NEEDS LSI */
+	rcc_wait_for_osc_ready(RCC_LSI);
 	iwdg_set_period_ms(3000); /* 3s */
 	/* START IWDG */
 	iwdg_start();
