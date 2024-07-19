@@ -172,6 +172,45 @@ spi_end_transaction(void)
 	subghz_wait_on_busy();
 }
 
+#define SPI_WAIT_LOOP	10000
+
+/* return number of spi data transfered */
+
+int
+bulk_spi_transfer(unsigned char *data, int len)
+{
+	uint16_t v;
+	uint32_t spi = SUBGHZSPI_BASE;
+	int pos = 0, i = 0;
+
+	if (data == NULL || len <= 0 || spi == 0)
+		return 0;
+
+	while (pos < len) {
+		/* Wait for previous tx transfer finished. */
+		i = 0;
+		while ((i < SPI_WAIT_LOOP) && !(SPI_SR(spi) & SPI_SR_TXE))
+			i ++;
+
+		if (i == SPI_WAIT_LOOP)
+			break;
+
+		SPI_DR8(spi) = data[pos];
+
+		/* wait for rx fifo ready */
+		i = 0;
+		while ((i < SPI_WAIT_LOOP) && !(SPI_SR(spi) & SPI_SR_RXNE))
+			i ++;
+
+		if (i == SPI_WAIT_LOOP)
+			break;
+
+		v = SPI_DR8(spi);
+		data[pos ++] = v & 0xff;
+	}
+
+	return pos;
+}
 
 /**
  * @brief  Transmit a byte over SUBGHZSPI.
@@ -212,27 +251,26 @@ subghz_result_t
 subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 {
 	subghz_result_t status;
-	int i;
+	uint8_t d[4];
+
+	d[0] = SUBGHZ_READ_REGISTER;
+	d[1] = ((address & 0xF00) >> 8);
+	d[2] = ((address & 0xFF));
+	d[3] = 0xFF;
 
 	/* Start transaction. */
 	spi_start_transaction();
 
-	spi_transmit(SUBGHZ_READ_REGISTER);
-	spi_transmit((address & 0xF00) >> 8);
-	spi_transmit((address & 0xFF));
-	status = spi_read_byte();
-
-	for (i = 0; i < size; i++) {
-		*(p_buffer++) = spi_read_byte();
-	}
+	bulk_spi_transfer(d, 4);
+	bulk_spi_transfer(p_buffer, size);
 
 	/* End transaction. */
 	spi_end_transaction();
 
-	/* Success. */
+	status = d[3];
+	/* Success. */
 	return status;
 }
-
 
 /**
  * @brief  Write data registers at an address in the peripheral
@@ -245,21 +283,22 @@ subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 subghz_result_t
 subghz_write_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 {
+	uint8_t d[4];
+
+	d[0] = SUBGHZ_WRITE_REGISTER;
+	d[1] = ((address & 0xF00) >> 8);
+	d[2] = ((address & 0xFF));
+
 	/* Start SPI transaction. */
 	spi_start_transaction();
 
-	spi_transmit(SUBGHZ_WRITE_REGISTER);
-	spi_transmit((address & 0xF00) >> 8);
-	spi_transmit((address & 0xFF));
-
-	for (uint16_t i = 0; i < size; i++) {
-		spi_transmit(p_buffer[i]);
-	}
+	bulk_spi_transfer(d, 3);
+	bulk_spi_transfer(p_buffer, size);
 
 	/* End of transaction. */
 	spi_end_transaction();
 
-	/* Status. */
+	/* Success. */
 	return SUBGHZ_STATUS_CMD_SUCCESS;
 }
 
@@ -302,24 +341,19 @@ subghz_write_reg(uint16_t address, uint8_t value)
 subghz_result_t
 subghz_write_buffer(uint8_t offset, uint8_t *p_data, int length)
 {
-	int i;
+	uint8_t d[4];
+
+	d[0] = SUBGHZ_WRITE_BUFFER;
+	d[1] = offset;
 
 	spi_start_transaction();
 
-	/* Send command. */
-	spi_transmit(SUBGHZ_WRITE_BUFFER);
-
-	/* Send offset. */
-	spi_transmit(offset);
-
-	/* Send buffer. */
-	for (i = 0; i < length; i++) {
-		spi_transmit(p_data[i]);
-	}
+	bulk_spi_transfer(d, 2);
+	bulk_spi_transfer(p_data, length);
 
 	spi_end_transaction();
 
-	/* Success. */
+	/* Success. */
 	return SUBGHZ_STATUS_CMD_SUCCESS;
 }
 
@@ -337,27 +371,21 @@ subghz_result_t
 subghz_read_buffer(uint8_t offset, uint8_t *p_data, int length)
 {
 	subghz_result_t status = 0;
-	int i;
+	uint8_t d[4];
+
+	d[0] = SUBGHZ_READ_BUFFER;
+	d[1] = offset;
+	d[2] = 0xFF;
 
 	spi_start_transaction();
 
-	/* Send command. */
-	spi_transmit(SUBGHZ_READ_BUFFER);
-
-	/* Send offset. */
-	spi_transmit(offset);
-
-	/* Read status. */
-	status = spi_transmit(0);
-
-	/* Read buffer. */
-	for (i = 0; i < length; i++) {
-		p_data[i] = spi_transmit(0);
-	}
+	bulk_spi_transfer(d, 3);
+	bulk_spi_transfer(p_data, length);
 
 	spi_end_transaction();
 
-	/* Success. */
+	status = d[2];
+	/* Success. */
 	return status;
 }
 
@@ -375,19 +403,19 @@ subghz_read_buffer(uint8_t offset, uint8_t *p_data, int length)
 subghz_result_t
 subghz_write_command(uint8_t command, uint8_t *p_parameters, int params_size)
 {
-	int i;
+	uint8_t d[4];
+
+	d[0] = command;
 
 	spi_start_transaction();
 
-	spi_transmit(command);
-	for (i = 0; i < params_size; i++) {
-		p_parameters[i] = spi_transmit(p_parameters[i]);
-	}
+	bulk_spi_transfer(d, 1);
+	bulk_spi_transfer(p_parameters, params_size);
 
 	spi_end_transaction();
 
-	/* Success. */
-	return (0x06 << 1);
+	/* Success. */
+	return SUBGHZ_STATUS_CMD_SUCCESS;
 }
 
 /**
@@ -2012,8 +2040,8 @@ int init_lora(void)
 	/* Enable LoRa mode. */
 	mini_printf("HSE32 -> %s\n", rcc_is_osc_ready(RCC_HSE)?"ON":"OFF");
 	r = subghz_lora_mode(&lora_config);
-	mini_printf("Enable LoRa -> %s\n", r == 0?"OK":"FAILED");
-	lora_started = (r == 0);
+	mini_printf("Enable LoRa -> %s\n", r == SUBGHZ_SUCCESS?"OK":"FAILED");
+	lora_started = (r == SUBGHZ_SUCCESS);
 	return 0;
 }
 
