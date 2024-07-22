@@ -2004,7 +2004,15 @@ int init_lora(void)
 void
 lora_enter_rx(void)
 {
-	/* Configure IRQ flags (no IRQ) */
+	uint8_t r;
+
+	r = subghz_get_status();
+	r = SUBGHZ_STATUS_MODE(r);
+
+	if (r == SUBGHZ_STATE_TX || r == SUBGHZ_STATE_RX)
+		return;
+
+	/* Configure RX IRQ flags */
 	if (SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT,
 	                                            IRQ_RADIO_NONE, IRQ_RADIO_NONE)))
 		return;
@@ -2040,8 +2048,13 @@ lora_service(void *arg)
 	mini_printf("Enable LoRa -> OK\n");
 	lora_started = 1;
 
-	lora_enter_rx();
 	while (1) {
+		r = xQueueReceive(lora_rx_queue, data, pdMS_TO_TICKS(0));
+		if (r == pdPASS) {
+			mini_printf("RX #%d data -> ", data[0]);
+			print_hex(data + 1, data[0]);
+		}
+		lora_enter_rx();
 		/* enter rx mode */
 		r = xQueueReceive(lora_tx_queue, data, pdMS_TO_TICKS(1000));
 		if (r != pdPASS)
@@ -2068,7 +2081,6 @@ lora_service(void *arg)
 
 		/* Wait for timeout or packet sent. */
 		while ((!g_flag_tx_done) && (!g_flag_timeout)) ;
-		lora_enter_rx();
 	}
 }
 
