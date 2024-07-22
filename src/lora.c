@@ -2009,7 +2009,7 @@ lora_enter_rx(void)
 	r = subghz_get_status();
 	r = SUBGHZ_STATUS_MODE(r);
 
-	if (r == SUBGHZ_STATE_TX || r == SUBGHZ_STATE_RX)
+	if ((r == SUBGHZ_STATUS_MODE_RX) || (r == SUBGHZ_STATUS_MODE_TX))
 		return;
 
 	/* Configure RX IRQ flags */
