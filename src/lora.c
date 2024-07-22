@@ -2151,6 +2151,23 @@ lora_cmd(int argc, char **argv)
 		data[len] = '\0';
 		lora_send(data, len);
 		return 0;
+	} else if (argc >= 2 && strcasecmp(argv[1], "recv") == 0) {
+		int r;
+		uint8_t rx = 64;
+
+		memset(data, 0, sizeof(data));
+
+		r = subghz_receive((uint8_t *) data, &rx, 0xFFFFFF);
+		mini_printf("got packet, rx = %d\r\n", rx);
+		data[rx] = '\0';
+		if (r == SUBGHZ_SUCCESS) {
+			mini_printf("Received packet: %s\r\n", data);
+		} else if (r == SUBGHZ_TIMEOUT) {
+			mini_printf("Reception timed out\r\n");
+		} else {
+			mini_printf("An error occured\r\n");
+		}
+		return 0;
 	}
 	return 1;
 }
