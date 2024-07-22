@@ -513,7 +513,7 @@ subghz_get_error(subghz_err_t *error)
 	status = subghz_write_command(SUBGHZ_GET_ERROR, params, 3);
 	*error = (params[1] << 8) | params[2];
 
-	/* Success. */
+	/* Success. */
 	return status;
 }
 
@@ -533,7 +533,7 @@ subghz_set_tcxo_mode(subghz_tcxo_trim_t trim, uint32_t timeout)
 
 	status = subghz_write_command(SUBGHZ_SET_TCXO_MODE, params, 4);
 
-	/* Success. */
+	/* Success. */
 	return status;
 }
 
@@ -551,9 +551,9 @@ subghz_calibrate(uint8_t calib_cfg)
 	subghz_result_t status = 0;
 	uint8_t params[] = {calib_cfg};
 
-	status = subghz_write_command(SUBGHZ_SET_TCXO_MODE, params, 1);
+	status = subghz_write_command(SUBGHZ_CALIBRATE, params, 1);
 
-	/* Success. */
+	/* Success. */
 	return status;
 }
 
@@ -576,7 +576,7 @@ subghz_set_sleep(uint8_t sleep_cfg)
 		g_subghz_state.current_state = SUBGHZ_STATE_SLEEP;
 	}
 
-	/* Success. */
+	/* Success. */
 	return status;
 }
 
@@ -599,7 +599,7 @@ subghz_set_standby_mode(subghz_standby_mode_t mode)
 		g_subghz_state.current_state = SUBGHZ_STATE_STDBY;
 	}
 
-	/* Success. */
+	/* Success. */
 	return status;
 }
 
@@ -618,7 +618,7 @@ subghz_set_regulator_mode(subghz_regulator_mode_t mode)
 
 	status = subghz_write_command(SUBGHZ_SET_REGULATOR_MODE, params, 1);
 
-	/* Success. */
+	/* Success. */
 	return status;
 }
 
