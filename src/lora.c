@@ -11,6 +11,7 @@
 #include <libopencm3/stm32/subghz.h>
 
 #include <FreeRTOS.h>
+#include <queue.h>
 
 #include "lora.h"
 #include "common.h"
@@ -25,10 +26,6 @@
 #define HF_PA_CTRL2_PIN  GPIO4
 #define HF_PA_CTRL3_PORT GPIOC
 #define HF_PA_CTRL3_PIN  GPIO5
-
-void on_rf_switch_cb(bool tx);
-void on_tx_pkt_sent(void);
-void on_rx_pkt_recvd(uint8_t offset, uint8_t length);
 
 void print_reg_hex(char *prefix, uint8_t value);
 void print_reg16_hex(char *prefix, uint16_t value);
@@ -45,6 +42,9 @@ volatile bool g_flag_timeout = false;
 
 void subghz_spi_init(int baudrate_prescaler);
 
+static void lora_service(void *);
+
+QueueHandle_t lora_rx_queue = NULL, lora_tx_queue = NULL;
 /**
  * @brief Initialize SubGHZ peripheral.
  * @retval SUBGHZ_SUCCESS on success, SUBGHZ_ERROR otherwise.
@@ -657,9 +657,7 @@ subghz_set_tx_mode(uint32_t timeout)
 
 	uint8_t params[] = { (timeout >> 16) & 0xFF, (timeout >> 8) & 0xFF, timeout & 0xFF};
 
-	/* Request an RF switch (TX mode). */
-	if (g_subghz_state.callbacks.pfn_on_rf_switch != NULL)
-		g_subghz_state.callbacks.pfn_on_rf_switch(true);
+	lora_rf_switch_cb(true);
 
 	result = subghz_write_command(SUBGHZ_SET_TX, params, 3);
 	if (SUBGHZ_CMD_SUCCESS(result)) {
@@ -686,8 +684,7 @@ subghz_set_rx_mode(uint32_t timeout)
 	uint8_t params[] = { (timeout >> 16) & 0xFF, (timeout >> 8) & 0xFF, timeout & 0xFF};
 
 	/* Request an RF switch (RX mode). */
-	if (g_subghz_state.callbacks.pfn_on_rf_switch != NULL)
-		g_subghz_state.callbacks.pfn_on_rf_switch(false);
+	lora_rf_switch_cb(false);
 
 	result = subghz_write_command(SUBGHZ_SET_RX, params, 3);
 	if (SUBGHZ_CMD_SUCCESS(result)) {
@@ -1704,34 +1701,6 @@ subghz_receive(uint8_t *p_frame, uint8_t *p_length, uint32_t timeout)
 	return SUBGHZ_ERROR;
 }
 
-/**
- * @brief   Set default subGHz driver callbacks (if defined)
- * @param   callbacks pointer to a `subghz_callbacks_t` structure defining callbacks.
- **/
-
-void
-subghz_set_callbacks(const subghz_callbacks_t *callbacks)
-{
-	if (callbacks == NULL)
-		return;
-
-	/* Update our packet sent callback, if required. */
-	if (callbacks->pfn_on_packet_sent != NULL)
-		g_subghz_state.callbacks.pfn_on_packet_sent = callbacks->pfn_on_packet_sent;
-
-	/* Update our packet reception callback, if required. */
-	if (callbacks->pfn_on_packet_recvd != NULL)
-		g_subghz_state.callbacks.pfn_on_packet_recvd = callbacks->pfn_on_packet_recvd;
-
-	/* Update our timeout callback, if required. */
-	if (callbacks->pfn_on_timeout != NULL)
-		g_subghz_state.callbacks.pfn_on_timeout = callbacks->pfn_on_timeout;
-
-	/* Update our RF switch callback, if required. */
-	if (callbacks->pfn_on_rf_switch != NULL)
-		g_subghz_state.callbacks.pfn_on_rf_switch = callbacks->pfn_on_rf_switch;
-}
-
 /*********************************************
  * RADIO IRQ Handling
  ********************************************/
@@ -1742,6 +1711,7 @@ radio_isr(void)
 	subghz_irq_status_t irq_status;
 	subghz_irq_status_t irq_clr;
 	subghz_rxbuf_status_t rxbuf_status;
+	uint8_t data[256];
 
 	/* Initialize our IRQ clear value. */
 	irq_clr.word = 0;
@@ -1753,10 +1723,6 @@ radio_isr(void)
 	if (irq_status.bits.tx_done) {
 		/* Save flag for synchronous mode. */
 		g_flag_tx_done = true;
-
-		/* Notify we received a packet. */
-		if (g_subghz_state.callbacks.pfn_on_packet_sent != NULL)
-			g_subghz_state.callbacks.pfn_on_packet_sent();
 
 		/* Clear TX_DONE bit. */
 		irq_clr.bits.tx_done = 1;
@@ -1771,8 +1737,10 @@ radio_isr(void)
 		if (SUBGHZ_CMD_SUCCESS(subghz_get_rxbuf_status(&rxbuf_status))) {
 			/* Display received packet. */
 			if (rxbuf_status.payload_length < 254) {
-				if (g_subghz_state.callbacks.pfn_on_packet_recvd != NULL)
-					g_subghz_state.callbacks.pfn_on_packet_recvd(rxbuf_status.buffer_offset, rxbuf_status.payload_length);
+				if (SUBGHZ_CMD_SUCCESS(subghz_read_buffer(rxbuf_status.buffer_offset, data + 1, rxbuf_status.payload_length))) {
+					data[0] = rxbuf_status.payload_length;
+					xQueueSendToBackFromISR(lora_rx_queue, data, 0);
+				}
 			}
 		}
 
@@ -1784,8 +1752,6 @@ radio_isr(void)
 	if (irq_status.bits.timeout) {
 		/* Save flag for synchronous mode. */
 		g_flag_timeout = true;
-		if (g_subghz_state.callbacks.pfn_on_timeout != NULL)
-			g_subghz_state.callbacks.pfn_on_timeout();
 
 		/* Clear TIMEOUT bit. */
 		irq_clr.bits.timeout = 1;
@@ -1965,13 +1931,6 @@ int init_lora(void)
 {
 	int r;
 
-	subghz_callbacks_t my_callbacks = {
-		.pfn_on_packet_recvd = on_rx_pkt_recvd,
-		.pfn_on_packet_sent = on_tx_pkt_sent,
-		.pfn_on_rf_switch = on_rf_switch_cb,
-		.pfn_on_timeout = NULL
-	};
-
 	subghz_lora_config_t lora_config = {
 		.sf = SUBGHZ_LORA_SF7,
 		.bw = SUBGHZ_LORA_BW250,
@@ -2033,20 +1992,87 @@ int init_lora(void)
 	/* Initialize SUBGHZ. */
 	subghz_init();
 
-	/* Set our callbacks. */
-	subghz_set_callbacks(&my_callbacks);
-
 	/* Set our payload. */
 	subghz_set_buffer_base_address(0, 0);
 
 	/* Enable LoRa mode. */
 	mini_printf("HSE32 -> %s\n", rcc_is_osc_ready(RCC_HSE)?"ON":"OFF");
-	r = subghz_lora_mode(&lora_config);
-	mini_printf("Enable LoRa -> %s\n", r == SUBGHZ_SUCCESS?"OK":"FAILED");
-	lora_started = (r == SUBGHZ_SUCCESS);
+	xTaskCreate(lora_service, "LORA", 2000, &lora_config, 3, NULL);
 	return 0;
 }
 
+void
+lora_enter_rx(void)
+{
+	/* Configure IRQ flags (no IRQ) */
+	if (SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT,
+	                                            IRQ_RADIO_NONE, IRQ_RADIO_NONE)))
+		return;
+
+	/* Enable reception. */
+	subghz_set_rx_mode(0xFFFFFF);
+}
+
+static void
+lora_service(void *arg)
+{
+	subghz_lora_config_t *config = NULL;
+	int r;
+	uint8_t data[256];
+
+	config = (subghz_lora_config_t *) arg;
+	if (config == NULL) {
+		mini_printf("arg == NULL, exit\n");
+		vTaskDelete(NULL);
+		return;
+	}
+
+	r = subghz_lora_mode(config);
+	if (r != SUBGHZ_SUCCESS) {
+		mini_printf("LORA MODE FAILED\n");
+		vTaskDelete(NULL);
+		return;
+	}
+
+	lora_rx_queue = xQueueCreate(10, 256);
+	lora_tx_queue = xQueueCreate(10, 256);
+
+	mini_printf("Enable LoRa -> OK\n");
+	lora_started = 1;
+
+	lora_enter_rx();
+	while (1) {
+		/* enter rx mode */
+		r = xQueueReceive(lora_tx_queue, data, pdMS_TO_TICKS(1000));
+		if (r != pdPASS)
+			continue;
+		/* Configure IRQ flags (no IRQ) */
+		if (SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT,
+							    IRQ_RADIO_NONE, IRQ_RADIO_NONE)))
+		{
+			continue;
+		}
+
+		/* Set payload buffer. */
+		if (SUBGHZ_CMD_FAILED(subghz_set_payload(data + 1, data[0]))) {
+			continue;
+		}
+
+		/* Reset TX and Timeout flags. */
+		g_flag_tx_done = false;
+		g_flag_timeout = false;
+
+		/* Start transmission. */
+		if (SUBGHZ_CMD_FAILED(subghz_set_tx_mode(0xFFFFFF)))
+			continue;
+
+		/* Wait for timeout or packet sent. */
+		while ((!g_flag_tx_done) && (!g_flag_timeout)) ;
+		lora_enter_rx();
+	}
+}
+
+#if 0
 int
 lora_send(char *msg, int len)
 {
@@ -2063,16 +2089,11 @@ lora_send(char *msg, int len)
 	print_reg_hex("status", SUBGHZ_STATUS_CMD(subghz_get_status()));
 	return 0;
 }
-
-void
-on_tx_pkt_sent(void)
-{
-	  mini_printf("Packet sent\n");
-}
+#endif
 
 /* handle RF switch config. */
 void
-on_rf_switch_cb(bool tx)
+lora_rf_switch_cb(bool tx)
 {
 	  if (tx) {
 	      /* TX mode, low power */
@@ -2085,16 +2106,6 @@ on_rf_switch_cb(bool tx)
 	      gpio_clear(RF_SW_CTRL_GPIO_PORT, RF_SW_CTRL_TXEN_PIN);
 	      gpio_set(RF_SW_CTRL_GPIO_PORT, RF_SW_CTRL_RXEN_PIN);
 	  }
-}
-
-void
-on_rx_pkt_recvd(uint8_t offset, uint8_t length)
-{
-	  uint8_t rxbuf[256];
-
-	  mini_printf("Packet received !\n");
-	  if (SUBGHZ_CMD_SUCCESS(subghz_read_buffer(offset, rxbuf, length)))
-		  console_puts((char *)rxbuf);
 }
 
 void
@@ -2131,7 +2142,7 @@ int
 lora_cmd(int argc, char **argv)
 {
 	int len;
-	char data[65];
+	uint8_t data[256];
 
 	/* lora init/send */
 	if (argc >= 2 && strcasecmp(argv[1], "init") == 0) {
@@ -2145,11 +2156,13 @@ lora_cmd(int argc, char **argv)
 	} else if (argc >= 3 && strcasecmp(argv[1], "send") == 0) {
 		/* lora send data */
 		len = strlen(argv[2]);
-		if (len > 64)
-			len = 64;
-		memcpy(data, argv[2], len);
-		data[len] = '\0';
-		lora_send(data, len);
+		if (len > 254)
+			len = 254;
+		memcpy(data + 1, argv[2], len);
+		data[len + 1] = '\0';
+		data[0] = len & 0xff;
+		if (lora_tx_queue)
+			xQueueSendToBack(lora_tx_queue, data, 0);
 		return 0;
 	} else if (argc >= 2 && strcasecmp(argv[1], "recv") == 0) {
 		int r;
