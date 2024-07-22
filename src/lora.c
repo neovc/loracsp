@@ -43,6 +43,8 @@ volatile bool g_flag_timeout = false;
 void subghz_spi_init(int baudrate_prescaler);
 
 static void lora_service(void *);
+void lora_rf_switch_cb(bool);
+extern void print_hex(uint8_t *src, int len);
 
 QueueHandle_t lora_rx_queue = NULL, lora_tx_queue = NULL;
 /**
@@ -1929,8 +1931,6 @@ subghz_set_whitening_init(uint8_t white_init)
 int lora_started = 0;
 int init_lora(void)
 {
-	int r;
-
 	subghz_lora_config_t lora_config = {
 		.sf = SUBGHZ_LORA_SF7,
 		.bw = SUBGHZ_LORA_BW250,
@@ -1946,6 +1946,7 @@ int init_lora(void)
 		.pa_power = SUBGHZ_PA_PWR_14DBM
 	};
 
+#if 0
 	subghz_fsk_config_t fsk_config = {
 		.freq = 865200000,
 		.freq_dev = 50000,
@@ -1967,6 +1968,7 @@ int init_lora(void)
 	fsk_config.sync_word[1] = 0xDC;
 	fsk_config.sync_word[2] = 0x0F;
 	fsk_config.sync_word[3] = 0xFE;
+#endif
 
 	/* PA6 = RF_TXEN, PA7 = RF_RXEN */
 	rcc_periph_clock_enable(RCC_GPIOA);
