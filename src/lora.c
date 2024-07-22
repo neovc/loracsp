@@ -466,7 +466,7 @@ subghz_get_status(void)
 	subghz_write_command(SUBGHZ_GET_STATUS, params, 1);
 	result = params[0];
 
-	/* Success. */
+	/* Success. */
 	return result;
 }
 
@@ -1401,6 +1401,8 @@ subghz_lora_mode(subghz_lora_config_t *p_lora_config)
 	g_subghz_state.current_freq = p_lora_config->freq;
 	g_subghz_state.current_channel = channel;
 
+	mini_printf("Lora FREQ -> %d HZ, Channel #%d\n", g_subghz_state.current_freq, g_subghz_state.current_channel);
+
 	if (subghz_config_pa(p_lora_config->pa_mode, p_lora_config->pa_power) == SUBGHZ_ERROR) {
 		return SUBGHZ_ERROR;
 	}
@@ -2058,7 +2060,7 @@ lora_send(char *msg, int len)
 	if (subghz_send((uint8_t *)msg, len, 0) == SUBGHZ_ERROR)
 		mini_printf("Send failed\n");
 
-	print_reg_hex("status", subghz_get_status());
+	print_reg_hex("status", SUBGHZ_STATUS_CMD(subghz_get_status()));
 	return 0;
 }
 
