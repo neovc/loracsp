@@ -45,6 +45,7 @@ void subghz_spi_init(int baudrate_prescaler);
 static void lora_service(void *);
 void lora_rf_switch_cb(bool);
 extern void print_hex(uint8_t *src, int len);
+BaseType_t woken = pdTRUE;
 
 QueueHandle_t lora_rx_queue = NULL, lora_tx_queue = NULL;
 /**
@@ -70,7 +71,7 @@ subghz_init(void)
 	rcc_periph_clock_enable(RCC_SUBGHZ);
 
 	/* Configure NVIC to enable RADIO IRQ. */
-	nvic_set_priority(NVIC_USART2_IRQ, IRQ2NVIC_PRIOR(configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY));
+	nvic_set_priority(NVIC_RADIO_IRQ, IRQ2NVIC_PRIOR(configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY));
 	nvic_enable_irq(NVIC_RADIO_IRQ);
 
 	/* Disable SUBGHZ reset through RCC. */
@@ -1741,7 +1742,8 @@ radio_isr(void)
 			if (rxbuf_status.payload_length < 254) {
 				if (SUBGHZ_CMD_SUCCESS(subghz_read_buffer(rxbuf_status.buffer_offset, data + 1, rxbuf_status.payload_length))) {
 					data[0] = rxbuf_status.payload_length;
-					xQueueSendToBackFromISR(lora_rx_queue, data, 0);
+					if (lora_rx_queue)
+						xQueueSendToBackFromISR(lora_rx_queue, data, &woken);
 				}
 			}
 		}
@@ -1936,7 +1938,7 @@ int init_lora(void)
 		.bw = SUBGHZ_LORA_BW250,
 		.cr = SUBGHZ_LORA_CR_48,
 		.freq = 865200000,
-		.payload_length = 13,
+		.payload_length = 64,
 		.preamble_length = 12,
 		.header_type = SUBGHZ_PKT_FIXED_LENGTH,
 		.crc_enabled = false,
