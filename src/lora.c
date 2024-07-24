@@ -1739,6 +1739,7 @@ radio_isr(void)
 
 		if (SUBGHZ_CMD_SUCCESS(subghz_get_rxbuf_status(&rxbuf_status))) {
 			/* Display received packet. */
+			gpio_set(GPIOB, GPIO4);
 			if (rxbuf_status.payload_length < 254) {
 				if (SUBGHZ_CMD_SUCCESS(subghz_read_buffer(rxbuf_status.buffer_offset, data + 1, rxbuf_status.payload_length))) {
 					data[0] = rxbuf_status.payload_length;
@@ -1746,6 +1747,7 @@ radio_isr(void)
 						xQueueSendToBackFromISR(lora_rx_queue, data, &woken);
 				}
 			}
+			gpio_clear(GPIOB, GPIO4);
 		}
 
 		/* Clear RX_DONE bit. */
@@ -2083,8 +2085,10 @@ lora_service(void *arg)
 		if (SUBGHZ_CMD_FAILED(subghz_set_tx_mode(0xFFFFFF)))
 			continue;
 
+		gpio_set(GPIOB, GPIO3);
 		/* Wait for timeout or packet sent. */
 		while ((!g_flag_tx_done) && (!g_flag_timeout)) ;
+		gpio_clear(GPIOB, GPIO3);
 	}
 }
 
