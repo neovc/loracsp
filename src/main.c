@@ -20,7 +20,11 @@
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/iwdg.h>
 
+#ifndef USE_CMAKE
 #include "conf_loracsp.h"
+#else
+#define CONFIG_REVISION "cmake"
+#endif
 #include "common.h"
 
 #define USART_CONSOLE USART2
