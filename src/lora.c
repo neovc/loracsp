@@ -215,31 +215,6 @@ bulk_spi_transfer(unsigned char *data, int len)
 	return pos;
 }
 
-/**
- * @brief  Transmit a byte over SUBGHZSPI.
- * @param  data  Byte to transmit
- * @retval HAL status
- */
-
-static subghz_result_t
-spi_transmit(uint8_t data)
-{
-	spi_send8(SUBGHZSPI_BASE, data);
-	return spi_read8(SUBGHZSPI_BASE);
-}
-
-
-/**
- * @brief  Read a byte from SUBGHZSPI.
- * @retval Byte read.
- */
-
-static uint8_t
-spi_read_byte(void)
-{
-	return spi_transmit(0xFF); /* 0x42 */
-}
-
 /*******************************************/
 
 /**
