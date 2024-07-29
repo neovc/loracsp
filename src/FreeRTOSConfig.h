@@ -58,6 +58,7 @@
 #define configQUEUE_REGISTRY_SIZE             (10)
 #define configTIMER_SERVICE_TASK_NAME         "TIMER"
 #define configUSE_NEWLIB_REENTRANT            1
+#define configUSE_MPU_WRAPPERS_V1             0
 
 #define configUSE_TRACE_FACILITY              (1)
 #define configUSE_STATS_FORMATTING_FUNCTIONS  (1)
