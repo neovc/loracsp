@@ -59,6 +59,7 @@
 #define configTIMER_SERVICE_TASK_NAME         "TIMER"
 #define configUSE_NEWLIB_REENTRANT            1
 #define configUSE_MPU_WRAPPERS_V1             0
+#define configCHECK_HANDLER_INSTALLATION      0
 
 #define configUSE_TRACE_FACILITY              (1)
 #define configUSE_STATS_FORMATTING_FUNCTIONS  (1)
@@ -121,10 +122,5 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */
 #define configASSERT( x ) if( ( x ) == 0 ) { taskDISABLE_INTERRUPTS(); for( ;; ); }
-
-/* Map the FreeRTOS port interrupt handlers to their CMSIS standard names. */
-#define xPortPendSVHandler                    PendSV_Handler
-#define vPortSVCHandler                       SVC_Handler
-#define xPortSysTickHandler                   SysTick_Handler
 
 #endif /* FREERTOS_CONFIG_H */
