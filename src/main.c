@@ -42,6 +42,9 @@ extern int read_params_config(void);
 extern unsigned __app_size__, __app_start__;
 uint32_t this_app_size, this_app_start;
 
+extern unsigned __app_ram_size__, __app_code_size__;
+uint32_t this_app_ram_size, this_app_code_size;
+
 typedef int (*command_handler_t)(int argc, char **argv);
 typedef struct {
 	const char *name;
@@ -416,6 +419,8 @@ main(void)
 
 	this_app_size = (uint32_t) (&__app_size__);
 	this_app_start = (uint32_t) (&__app_start__);
+	this_app_ram_size = (uint32_t) (&__app_ram_size__);
+	this_app_code_size = (uint32_t) (&__app_code_size__);
 
 	/* enable IWDG */
 	rcc_osc_on(RCC_LSI); /* IWDG NEEDS LSI */
@@ -432,7 +437,7 @@ main(void)
 	boot_cause = get_boot_cause();
 
 	mini_printf("READ PARAMS FROM FLASH -> %s\n", status[r]);
-	mini_printf("CSP NODE -> #%d, APP SIZE #%d, START 0x%x\n", csp_node, this_app_size, this_app_start);
+	mini_printf("CSP NODE -> #%d, APP SIZE #%d, CODE SIZE #%d, RAM SIZE #%d\n", csp_node, this_app_size, this_app_code_size, this_app_ram_size);
 
 	init_flash();
 
