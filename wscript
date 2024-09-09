@@ -33,6 +33,9 @@ else:
     libopencm3_revision = "deaddead"
     libopencm3_revision_date = bin_date
 
+# Scan modules in local lib dir
+modules = ['libcsp']
+
 def down_libopencm3():
     if not os.path.exists('libopencm3'):
         print('begin downloading libopencm3 library...\n')
@@ -46,10 +49,14 @@ def options(ctx):
 
     down_libopencm3()
 
+    ctx.recurse(modules, once=True)
+
     ctx.add_option('--arch', action='store', default='cortex-m4', help='MCU arch')
     ctx.add_option('--toolchain', action='store', default='arm-none-eabi-', help='Set toolchain prefix')
     ctx.add_option('--release', action='store_true', help='Build release image')
     ctx.add_option('--update', action='store_true', help='Update libopencm3 source')
+    ctx.add_option('--hostname', action='store', default='uv', help='Specify CSP hostname')
+    ctx.add_option('--model', action='store', default='loracsp', help='Specify board version')
 
 def configure(ctx):
     ctx.env.CC = ctx.options.toolchain + "gcc"
@@ -91,14 +98,37 @@ def configure(ctx):
     if ctx.options.release == True:
         ctx.define('BUILD_RELEASE', 1)
 
+    # FOR LIBCSP
+    ctx.env.append_unique('INCLUDES_CSP', ['include', '../rtos/include', '../src'])
+
+    # Options for libCSP
+    ctx.options.with_os = 'freertos'
+    ctx.options.with_rtable = 'cidr'
+    ctx.options.with_max_connections = 20
+    ctx.options.with_conn_queue_length = 50
+    ctx.options.with_router_queue_length = 20
+    ctx.options.with_max_bind_port = 25
+    ctx.options.enable_crc32 = True
+    ctx.options.enable_if_i2c = False
+    ctx.options.enable_if_kiss = True
+    ctx.options.enable_if_can = False
+    ctx.options.enable_if_stdcan = False
+    ctx.options.enable_if_extcan = False
+    ctx.options.enable_rdp = True
+    ctx.options.enable_qos = True
+    ctx.options.enable_hmac = True
+    ctx.options.enable_dedup = True
+
     # Save config to header file
     ctx.write_config_header('include/conf_loracsp.h', top=True)
+    ctx.recurse(modules)
 
     if ctx.options.update == True or not os.path.exists('libopencm3/lib/libopencm3_stm32wl.a'):
         update_libopencm3()
 
 def build(ctx):
     ctx(export_includes=['include', '.', 'rtos/include', 'libopencm3/include', 'src'], name='include')
+    ctx.recurse(modules)
     # Linker script
     use=['include']
     use.extend(ctx.env.LIBCLIENTS_USE)
