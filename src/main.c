@@ -27,6 +27,12 @@
 #endif
 #include "common.h"
 
+/* CSP */
+#include <csp/csp.h>
+#include <csp/csp_crc32.h>
+#include <csp/interfaces/csp_if_kiss.h>
+#include <csp/interfaces/csp_if_can.h>
+
 #define USART_CONSOLE USART2
 
 int freertos_started = 0, to_feed_iwdg = 1;
@@ -385,7 +391,21 @@ server_task(void *unused)
 static void
 init_task(void *unused)
 {
+	csp_conf_t lora_csp_conf;
+
+	memset(&lora_csp_conf, 0, sizeof(lora_csp_conf));
+
+	lora_csp_conf.address = csp_node;
+	lora_csp_conf.hostname = CONFIG_HOSTNAME;
+	lora_csp_conf.model = CONFIG_MODEL;
+	lora_csp_conf.revision = CONFIG_REVISION;
+
+	csp_init(&lora_csp_conf);
+
+	csp_route_start_task(1000, 4);
+
 	freertos_started = 1;
+
 	mini_printf("INIT -> OK\n");
 
 	save_params_config();

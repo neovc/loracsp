@@ -90,6 +90,8 @@ def configure(ctx):
     libopencm3_git_date = int(libopencm3_revision_date, 16)
 
     ctx.define('CONFIG_REVISION', revision)
+    ctx.define('CONFIG_HOSTNAME', ctx.options.hostname)
+    ctx.define('CONFIG_MODEL', ctx.options.model)
     ctx.define('GIT_REVISION', git_revision, False)
     ctx.define('GIT_DATE', git_date)
     ctx.define('LIBOPENCM3_GIT_REVISION', libopencm3_git_revision, False)
@@ -127,10 +129,10 @@ def configure(ctx):
         update_libopencm3()
 
 def build(ctx):
-    ctx(export_includes=['include', '.', 'rtos/include', 'libopencm3/include', 'src'], name='include')
+    ctx(export_includes=['include', '.', 'rtos/include', 'libcsp/include', 'libopencm3/include', 'src'], name='include')
     ctx.recurse(modules)
     # Linker script
-    use=['include']
+    use=['include', 'csp']
     use.extend(ctx.env.LIBCLIENTS_USE)
 
     ctx.program(
